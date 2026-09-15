@@ -4,3 +4,6 @@ pnpm-lock.yaml
 
 dist
 node_modules
+
+# Backend-generated contract; preserve exact producer bytes.
+contracts/openapi.json

@@ -1,4 +1,16 @@
-# 前端
+# 107 frontend
+
+本仓库由 107 Workspace 拆出，支持独立安装、检查与构建。
+
+```bash
+make setup
+make check
+make build
+```
+
+整套系统的启动、认证服务、产品设计与运维说明见
+[索引仓库](https://github.com/114August514/107-workspace)。
+本文中的“索引仓库根目录”指完整集成工作区。
 
 107 Workspace 控制台。React + TypeScript + Vite；目标组件系统使用 Primer React、
 Primer Primitives、Primer Octicons 与 CSS Modules。当前 Ant Design 界面是迁移期间的
@@ -14,7 +26,7 @@ pnpm run dev
 ```
 
 打开 <http://127.0.0.1:5174>。开发服务器把 `/api` 转发到 `http://127.0.0.1:8000`，
-所以代码里不出现后端地址。需要先按 [`backend/README.md`](../backend/README.md)
+所以代码里不出现后端地址。需要先按 [`backend/README.md`](https://github.com/114August514/107-backend/blob/main/README.md)
 启动后端并载入种子数据。
 
 ## 目录
@@ -48,11 +60,11 @@ tests/
 
 ## 组件系统与迁移边界
 
-目标前端技术选型以 [`docs/product/design.md`](../docs/product/design.md) 为准。
+目标前端技术选型以 [`docs/product/design.md`](https://github.com/114August514/107-workspace/blob/main/docs/product/design.md) 为准。
 Primer 迁移由 [GitHub Issue #16](https://github.com/114August514/107-workspace/issues/16)
 统一跟踪，但迁移进度不改变产品设计或 API 契约。
 用户可见术语、状态反馈和操作文案统一遵循
-[`docs/product/ui-copy.md`](../docs/product/ui-copy.md)，页面不得自行定义竞争规则。
+[`docs/product/ui-copy.md`](https://github.com/114August514/107-workspace/blob/main/docs/product/ui-copy.md)，页面不得自行定义竞争规则。
 
 迁移遵守以下边界：
 
@@ -82,7 +94,7 @@ Primer 迁移由 [GitHub Issue #16](https://github.com/114August514/107-workspac
   `src/assets/brand/107_pig_final.svg`，使用黑色静态填充与透明负空间；不新增 Provider、主题切换器或
   第二套 semantic token；
 - USTC 校徽、校名与标准色属于学校 affiliation，来源与使用约束记录在
-  [`docs/references/brand/ustc-vis.md`](../docs/references/brand/ustc-vis.md)；
+  [`docs/references/brand/ustc-vis.md`](https://github.com/114August514/107-workspace/blob/main/docs/references/brand/ustc-vis.md)；
 - 当前产品身份采用黑白灰：Brand Mark / favicon 使用 final 几何和黑白单色逻辑，灰色由 Primer
   neutral 与 state tokens 负责；
 - 蓝白配色仍是后续调研候选，不属于当前 active UI；任何 HEX 都只能称为 107 Workspace 的候选网页适配，不能称为 USTC 官方色值；
@@ -102,33 +114,19 @@ UI 改动除类型检查和生产构建外，还必须在真实浏览器中检�
 PR 提供与改动范围相称的关键状态截图。组件测试断言用户可观察行为，不绑定 Primer 或
 Ant Design 的私有 DOM 和 class。
 
-## 接口类型来自契约，不是手写的
+## 接口类型来自契约
+
+`contracts/openapi.json` 是从后端固定版本取得并提交的消费快照；
+`contracts/source.json` 记录来源提交和文件 SHA-256。它不由前端手工维护。
 
 ```text
-后端 DTO / 路由 → contracts/openapi.json → src/api/schema.d.ts → src/api/types.ts → 组件
+固定版本的后端 OpenAPI → contracts/openapi.json → src/api/schema.d.ts
 ```
 
-**不要在前端手写任何接口类型。** 需要新字段先改后端，然后：
-
-```bash
-make contract                       # 在仓库根目录执行
-```
-
-HTTP 调用走 `openapi-fetch`，泛型参数就是生成的 `paths`：
-
-```ts
-await http.GET('/api/v1/projects/{project_id}/files/content', {
-  params: { path: { project_id: id }, query: { path } },
-})
-```
-
-路径写错、路径参数漏传、query 名字拼错、请求体字段不对，都是编译期错误。
-
-仍未迁移的 Ant Design 表格列名使用 `field<T>('exit_code')` 而不是裸字符串：
-其 `dataIndex` 声明成 `string`，字段改名后可能安静地渲染成空列。最终删除
-Ant Design 时同时复核并清理这个专属 helper。
-
-仓库的统一检查会重新生成并比对差异，所以前端类型不能悄悄和后端脱节。
+更新快照后运行 `pnpm run generate:api`，提交快照、来源记录与生成类型。
+`pnpm run check:api` 验证类型与快照一致；`make check` 无需后端源码或 Python。
+通过索引仓库联调时可使用 `make contract` 更新整条链路。
+接口调用继续使用 `openapi-fetch`，不要手写竞争的接口类型。
 
 ## 页面对应的核心闭环
 
@@ -178,10 +176,10 @@ pnpm run build
 pnpm run generate:api     # 仅重新生成类型；平时在根目录用 make contract
 ```
 
-仓库根目录执行 `make check-frontend` 会跑与 CI 相同的前端检查。
+索引仓库根目录执行 `make check-frontend` 会跑与 CI 相同的前端检查。
 
 当前 Ant Design UI 是后续迁移的旧实现，因此不保留绑定组件库私有 class 或视觉偏好的
-测试。新组件和页面切片进入实现时，按 [`../docs/testing/README.md`](../docs/testing/README.md)
+测试。新组件和页面切片进入实现时，按 [`../docs/testing/README.md`](https://github.com/114August514/107-workspace/blob/main/docs/testing/README.md)
 定义的 unit、component、feature 和 e2e 粒度保护用户可观察行为。
 
 ## 关于展示内容
