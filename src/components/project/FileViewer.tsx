@@ -1,8 +1,6 @@
 import { EditorView } from '@codemirror/view'
 import { DownloadIcon, HomeIcon } from '@primer/octicons-react'
 import { Button, Label, Text } from '@primer/react'
-import { Highlight, themes } from 'prism-react-renderer'
-import { langs } from '@uiw/codemirror-extensions-langs'
 import CodeMirror from '@uiw/react-codemirror'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
@@ -15,6 +13,8 @@ import styles from './FileViewer.module.css'
 import { useAsync } from '../../api/useAsync'
 import { AsyncState } from '../common/AsyncState'
 import { FileObjectActions } from './FileObjectActions'
+import { codeExtensionForPath, previewKind } from './filePreview'
+import { MarkdownPreview } from './MarkdownPreview'
 interface Props {
   projectId: string
   access: Project | undefined
@@ -24,45 +24,6 @@ interface Props {
   version?: ProjectVersionDetail
   onChanged?: () => void
   workingHref?: string
-}
-function languageForPath(path: string): string {
-  const extension = path.split('.').at(-1)?.toLowerCase()
-  const languages: Record<string, string> = {
-    js: 'javascript',
-    jsx: 'jsx',
-    json: 'json',
-    md: 'markdown',
-    py: 'python',
-    sh: 'bash',
-    ts: 'typescript',
-    tsx: 'tsx',
-    yaml: 'yaml',
-    yml: 'yaml',
-  }
-  return languages[extension ?? ''] ?? 'text'
-}
-const editorLanguages = {
-  js: langs.js,
-  jsx: langs.jsx,
-  ts: langs.ts,
-  tsx: langs.tsx,
-  json: langs.json,
-  md: langs.markdown,
-  py: langs.python,
-  yaml: langs.yaml,
-  yml: langs.yaml,
-  cpp: langs.cpp,
-  cc: langs.cpp,
-  hpp: langs.cpp,
-  java: langs.java,
-  go: langs.go,
-  sh: langs.sh,
-  bash: langs.bash,
-}
-function editorLanguage(path: string) {
-  const extension = path.split('.').at(-1)?.toLowerCase()
-  const factory = editorLanguages[extension as keyof typeof editorLanguages]
-  return factory ? [factory()] : []
 }
 export function FileViewer({
   projectId,
@@ -75,8 +36,13 @@ export function FileViewer({
   workingHref,
 }: Props) {
   const navigate = useNavigate()
-  const editorExtensions = useMemo(() => editorLanguage(path), [path])
+  const kind = previewKind(path)
+  const editorExtensions = useMemo(() => {
+    const extension = codeExtensionForPath(path)
+    return extension ? [extension] : []
+  }, [path])
   const readOnly = version !== undefined
+  const [editing, setEditing] = useState(false)
   const canWrite = !readOnly && can(access, 'project.content.write')
   const fileName = path.split('/').at(-1) ?? path
   const directorySegments = path.split('/').slice(0, -1)
@@ -168,27 +134,30 @@ export function FileViewer({
                 文件过大，只显示开头内容，不能保存。
               </Text>
             )}
-            {readOnly ? (
-              <Highlight theme={themes.github} code={content} language={languageForPath(path)}>
-                {({ className, style, tokens, getLineProps, getTokenProps }) => (
-                  <pre className={`${className} ${styles.codeViewer}`} style={style}>
-                    {tokens.map((line, index) => (
-                      <div key={index} {...getLineProps({ line })}>
-                        {line.map((token, tokenIndex) => (
-                          <span key={tokenIndex} {...getTokenProps({ token })} />
-                        ))}
-                      </div>
-                    ))}
-                  </pre>
-                )}
-              </Highlight>
+            {content.length === 0 ? (
+              <p>这个文件没有可显示的内容。</p>
+            ) : kind === 'markdown' && (readOnly || !editing) ? (
+              <MarkdownPreview content={content} />
+            ) : kind === 'text' ? (
+              <pre className={styles.codeViewer} tabIndex={0} aria-label={`查看 ${path}`}>
+                {content}
+              </pre>
+            ) : readOnly || !canWrite || file.data.truncated ? (
+              <CodeMirror
+                className={styles.codeViewer}
+                value={content}
+                editable={false}
+                readOnly
+                height="32rem"
+                extensions={editorExtensions}
+                aria-label={`查看 ${path}`}
+              />
             ) : (
               <CodeMirror
                 className={styles.editor}
                 value={content}
                 onChange={setContent}
                 height="32rem"
-                readOnly={!canWrite || file.data.truncated}
                 extensions={[
                   ...editorExtensions,
                   EditorView.contentAttributes.of({ 'aria-label': `编辑 ${path}` }),
@@ -196,7 +165,12 @@ export function FileViewer({
                 aria-label={`编辑 ${path}`}
               />
             )}
-            {canWrite && !file.data.truncated && (
+            {kind === 'markdown' && canWrite && !file.data.truncated && !editing && (
+              <div className={styles.actions}>
+                <Button onClick={() => setEditing(true)}>编辑</Button>
+              </div>
+            )}
+            {canWrite && !file.data.truncated && (kind !== 'markdown' || editing) && (
               <div className={styles.actions}>
                 <Button variant="primary" onClick={save} loading={saving}>
                   保存

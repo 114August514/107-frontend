@@ -1,10 +1,9 @@
 import { BookIcon, FileCodeIcon } from '@primer/octicons-react'
 import { IconButton } from '@primer/react'
-import Markdown from 'react-markdown'
 import { Link as RouterLink } from 'react-router-dom'
-import remarkGfm from 'remark-gfm'
 
 import 'github-markdown-css/github-markdown-light.css'
+import { MarkdownPreview } from './MarkdownPreview'
 import styles from './ReadmePanel.module.css'
 
 interface Props {
@@ -30,7 +29,7 @@ export function ReadmePanel({ content, fileHref }: Props) {
         />
       </header>
       <article className={`markdown-body ${styles.body}`}>
-        <Markdown remarkPlugins={[remarkGfm]}>{content}</Markdown>
+        <MarkdownPreview content={content} />
       </article>
     </section>
   )
