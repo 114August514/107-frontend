@@ -455,6 +455,59 @@ export const api = {
     )
   },
 
+  listUserGroupVariables: async (userGroupId: string): Promise<Variable[]> =>
+    unwrap(
+      await http.GET('/api/v1/user-groups/{user_group_id}/variables', {
+        params: { path: { user_group_id: userGroupId } },
+      }),
+    ),
+
+  putUserGroupVariable: async (
+    userGroupId: string,
+    variable: { name: string; value: string },
+  ): Promise<Variable> =>
+    unwrap(
+      await http.PUT('/api/v1/user-groups/{user_group_id}/variables', {
+        params: { path: { user_group_id: userGroupId } },
+        body: variable,
+      }),
+    ),
+
+  deleteUserGroupVariable: async (userGroupId: string, name: string): Promise<void> => {
+    unwrap(
+      await http.DELETE('/api/v1/user-groups/{user_group_id}/variables/{name}', {
+        params: { path: { user_group_id: userGroupId, name } },
+      }),
+    )
+  },
+
+  listUserGroupSecrets: async (userGroupId: string): Promise<Secret[]> =>
+    unwrap(
+      await http.GET('/api/v1/user-groups/{user_group_id}/secrets', {
+        params: { path: { user_group_id: userGroupId } },
+      }),
+    ),
+
+  putUserGroupSecret: async (
+    userGroupId: string,
+    secret: { name: string; value: string },
+  ): Promise<void> => {
+    unwrap(
+      await http.PUT('/api/v1/user-groups/{user_group_id}/secrets', {
+        params: { path: { user_group_id: userGroupId } },
+        body: secret,
+      }),
+    )
+  },
+
+  deleteUserGroupSecret: async (userGroupId: string, name: string): Promise<void> => {
+    unwrap(
+      await http.DELETE('/api/v1/user-groups/{user_group_id}/secrets/{name}', {
+        params: { path: { user_group_id: userGroupId, name } },
+      }),
+    )
+  },
+
   // -- Project -----------------------------------------------------------
   listOwnerProjects: async (
     owner: OwnerReference,
