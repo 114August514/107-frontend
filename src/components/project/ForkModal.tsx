@@ -1,7 +1,17 @@
-import { Alert, Form, Input, Modal, Select, Typography, message } from 'antd'
-import { useEffect } from 'react'
+import {
+  Banner,
+  Dialog,
+  FormControl,
+  Select,
+  Stack,
+  Text,
+  Textarea,
+  TextInput,
+} from '@primer/react'
+import { useState } from 'react'
 
 import { api } from '../../api/client'
+import { toAsyncError } from '../../api/errors'
 import type { Project, ProjectVersion, UserGroup } from '../../api/types'
 import { useAsync } from '../../api/useAsync'
 
@@ -15,94 +25,151 @@ interface Props {
 
 /**
  * 从一个确定版本派生新 Project。
- *
- * 目标 User Group 列表只列**能建 Project 的**项。列出全部再让用户撞 403，
- * 等于把「你有没有权限」这个问题推给用户去试——而他试之前根本没法知道。
+ * 目标列表来自当前用户的 User Group；能否创建仍由后端判定。
  */
 export function ForkModal({ open, version, sourceProjectName, onClose, onForked }: Props) {
-  const [form] = Form.useForm<{ target_owner_id: string; name: string; description: string }>()
-  // Every returned User Group is an active Membership; current role capabilities permit
-  // Project creation, while the backend remains authoritative for the exact request.
-  const writableGroups = useAsync<UserGroup[]>(() => api.listUserGroups(), [open])
+  if (!open || !version) return null
+  return (
+    <ForkForm
+      version={version}
+      sourceProjectName={sourceProjectName}
+      onClose={onClose}
+      onForked={onForked}
+    />
+  )
+}
 
-  useEffect(() => {
-    if (open) {
-      form.setFieldsValue({ name: sourceProjectName, description: '' })
-    }
-  }, [open, sourceProjectName, form])
+function ForkForm({
+  version,
+  sourceProjectName,
+  onClose,
+  onForked,
+}: {
+  version: ProjectVersion
+  sourceProjectName: string
+  onClose: () => void
+  onForked: (project: Project) => void
+}) {
+  const writableGroups = useAsync<UserGroup[]>(() => api.listUserGroups(), [])
+  const [ownerId, setOwnerId] = useState('')
+  const [name, setName] = useState(sourceProjectName)
+  const [description, setDescription] = useState('')
+  const [ownerError, setOwnerError] = useState<string | null>(null)
+  const [nameError, setNameError] = useState<string | null>(null)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
   const submit = async () => {
-    if (!version) return
-    const values = await form.validateFields()
+    const nextName = name.trim()
+    let invalid = false
+    if (!ownerId) {
+      setOwnerError('请选择目标 User Group')
+      invalid = true
+    } else {
+      setOwnerError(null)
+    }
+    if (!nextName) {
+      setNameError('请填写名称')
+      invalid = true
+    } else {
+      setNameError(null)
+    }
+    if (invalid) return
+    setSubmitting(true)
+    setSubmitError(null)
     try {
       const project = await api.forkVersion(version.id, {
-        target_owner: { kind: 'user_group', id: values.target_owner_id },
-        name: values.name,
-        description: values.description,
+        target_owner: { kind: 'user_group', id: ownerId },
+        name: nextName,
+        description: description.trim(),
       })
-      message.success(`已创建 ${project.name}`)
       onForked(project)
       onClose()
     } catch (error) {
-      message.error((error as Error).message)
+      setSubmitError(toAsyncError(error as Error)?.message ?? (error as Error).message)
+    } finally {
+      setSubmitting(false)
     }
   }
 
   return (
-    <Modal
-      title={version ? `从 ${version.label} 派生新 Project` : 'Fork'}
-      open={open}
-      onCancel={onClose}
-      onOk={submit}
-      okText="创建"
-      cancelText="取消"
-      destroyOnHidden
+    <Dialog
+      title={`从 ${version.label} 派生新 Project`}
+      width="large"
+      onClose={() => {
+        if (!submitting) onClose()
+      }}
+      footerButtons={[
+        { content: '取消', disabled: submitting, onClick: onClose },
+        {
+          content: '创建',
+          buttonType: 'primary',
+          disabled: submitting,
+          loading: submitting,
+          onClick: () => void submit(),
+        },
+      ]}
     >
-      <Alert
-        type="info"
-        showIcon
-        style={{ marginBottom: 16 }}
-        message="复制的是内容和运行方案，不是权限"
-        description="资源权益、成员权限、Secret 的值和 Run 历史都不会跟过去。运行方案里的 Secret 引用会一起复制，但需要你在目标 User Group 配置同名 Secret 才能跑起来。"
-      />
-      {writableGroups.error && (
-        <Alert
-          type="error"
-          showIcon
-          message="无法加载可创建 Project 的 User Group"
-          description={writableGroups.error.message}
-        />
-      )}
-      <Form form={form} layout="vertical">
-        <Form.Item
-          name="target_owner_id"
-          label="创建到哪个 User Group"
-          rules={[{ required: true, message: '请选择目标 User Group' }]}
+      <Stack gap="normal">
+        <Banner variant="info" title="复制的是内容和运行方案，不是权限">
+          <Banner.Description>
+            资源权益、成员权限、Secret 的值和 Run 历史都不会跟过去。运行方案里的 Secret
+            引用会一起复制，但需要你在目标 User Group 配置同名 Secret 才能跑起来。
+          </Banner.Description>
+        </Banner>
+        {writableGroups.error ? (
+          <Banner variant="critical" title="无法加载可创建 Project 的 User Group">
+            <Banner.Description>{writableGroups.error.message}</Banner.Description>
+          </Banner>
+        ) : null}
+        {submitError ? (
+          <Banner variant="critical">
+            <Banner.Title>{submitError}</Banner.Title>
+          </Banner>
+        ) : null}
+        <FormControl
+          required
+          id="fork-owner"
+          disabled={Boolean(writableGroups.error) || writableGroups.loading || submitting}
         >
+          <FormControl.Label>创建到哪个 User Group</FormControl.Label>
           <Select
-            loading={writableGroups.loading}
-            disabled={Boolean(writableGroups.error)}
-            placeholder="选择一个你能建 Project 的 User Group"
-            options={(writableGroups.data ?? []).map((group) => ({
-              value: group.id,
-              label: group.name,
-            }))}
+            aria-label="创建到哪个 User Group"
+            value={ownerId}
+            onChange={(event) => setOwnerId(event.currentTarget.value)}
+          >
+            <Select.Option value="">选择一个你能建 Project 的 User Group</Select.Option>
+            {(writableGroups.data ?? []).map((group) => (
+              <Select.Option key={group.id} value={group.id}>
+                {group.name}
+              </Select.Option>
+            ))}
+          </Select>
+          {ownerError ? (
+            <FormControl.Validation variant="error">{ownerError}</FormControl.Validation>
+          ) : null}
+        </FormControl>
+        <FormControl required id="fork-name">
+          <FormControl.Label>新 Project 名称</FormControl.Label>
+          <TextInput value={name} onChange={(event) => setName(event.target.value)} block />
+          {nameError ? (
+            <FormControl.Validation variant="error">{nameError}</FormControl.Validation>
+          ) : null}
+        </FormControl>
+        <FormControl id="fork-description">
+          <FormControl.Label>说明</FormControl.Label>
+          <Textarea
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            placeholder="可选"
+            rows={2}
+            block
           />
-        </Form.Item>
-        <Form.Item
-          name="name"
-          label="新 Project 名称"
-          rules={[{ required: true, message: '请填写名称' }]}
-        >
-          <Input placeholder={sourceProjectName} />
-        </Form.Item>
-        <Form.Item name="description" label="说明">
-          <Input.TextArea rows={2} placeholder="可选" />
-        </Form.Item>
-      </Form>
-      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-        派生之后两边互不影响：源项目后续的修改不会同步过来，你的修改也不会回到源项目。
-      </Typography.Text>
-    </Modal>
+        </FormControl>
+        <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>
+          派生之后两边互不影响：源项目后续的修改不会同步过来，你的修改也不会回到源项目。
+        </Text>
+      </Stack>
+    </Dialog>
   )
 }

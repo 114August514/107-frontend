@@ -9,7 +9,7 @@ interface Props {
   activities: Activity[]
 }
 
-/** User Group 概览使用的活动列表；Project 页面仍由 antd ActivityFeed 承载至 #20。 */
+/** User Group 概览使用的活动列表。Project 活动由 ActivityFeed 呈现。 */
 export function ActivityList({ activities }: Props) {
   return (
     <ul className={styles.list} aria-label="近期活动">

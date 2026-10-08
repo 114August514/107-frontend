@@ -1,18 +1,15 @@
 import { ChevronDownIcon, ChevronRightIcon, FileIcon } from '@primer/octicons-react'
 import {
-  Alert,
+  Banner,
   Button,
-  Drawer,
-  Input,
-  Popconfirm,
-  Space,
-  Spin,
-  Table,
-  Tag,
-  Typography,
-  message,
-} from 'antd'
-import type { ColumnsType } from 'antd/es/table'
+  ConfirmationDialog,
+  Dialog,
+  Label,
+  Spinner,
+  Stack,
+  Text,
+  TextInput,
+} from '@primer/react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
@@ -27,18 +24,19 @@ import type {
   WorkingChangeDetail,
 } from '../../api/types'
 import { useAsync } from '../../api/useAsync'
-import { field } from '../../utils/field'
 import { formatBytes, formatTime } from '../../utils/format'
 import { tablePagination } from '../../utils/pagination'
 import { AsyncSection } from '../common/AsyncSection'
 import { ForkModal } from './ForkModal'
 import styles from './VersionPanel.module.css'
 
-const CHANGE_LABEL: Record<ChangeKind, { text: string; color: string }> = {
-  added: { text: '新增', color: 'green' },
-  modified: { text: '修改', color: 'blue' },
-  removed: { text: '删除', color: 'red' },
-}
+const CHANGE_LABEL: Record<ChangeKind, { text: string; variant: 'success' | 'accent' | 'danger' }> =
+  {
+    added: { text: '新增', variant: 'success' },
+    modified: { text: '修改', variant: 'accent' },
+    removed: { text: '删除', variant: 'danger' },
+  }
+
 type VersionPanelSection = 'all' | 'changes' | 'versions'
 
 interface Props {
@@ -50,11 +48,7 @@ interface Props {
   onVersionSaved: () => void
 }
 
-/**
- * 版本历史与未保存变更。
- *
- * Project Version 是不可变快照，恢复历史版本改的是工作区，不会动那个版本。
- */
+/** 版本历史与未保存变更。恢复历史版本改的是工作区，不会改那个版本。 */
 export function VersionPanel({
   section = 'all',
   projectId,
@@ -68,6 +62,10 @@ export function VersionPanel({
   const navigate = useNavigate()
   const [forking, setForking] = useState<ProjectVersion | null>(null)
   const [inspecting, setInspecting] = useState<WorkingChange | null>(null)
+  const [restoring, setRestoring] = useState<ProjectVersion | null>(null)
+  const [notice, setNotice] = useState<{ variant: 'success' | 'critical'; text: string } | null>(
+    null,
+  )
   const canWrite = can(access, 'project.content.write')
   const [page, setPage] = useState(1)
   const versions = useAsync<ProjectVersionPage>(
@@ -78,23 +76,23 @@ export function VersionPanel({
     () => api.workingChanges(projectId),
     [projectId, refreshToken],
   )
-  const [message_, setMessage] = useState('')
+  const [message, setMessage] = useState('')
   const [saving, setSaving] = useState(false)
   const [changesExpanded, setChangesExpanded] = useState(true)
-
   const pending = changes.data ?? []
+  const pagination = tablePagination(versions.data, setPage)
 
   const save = async () => {
     setSaving(true)
     try {
-      const version = await api.saveVersion(projectId, message_)
-      message.success(`已保存 ${version.label}`)
+      const version = await api.saveVersion(projectId, message)
+      setNotice({ variant: 'success', text: `已保存 ${version.label}` })
       setMessage('')
       versions.reload()
       changes.reload()
       onVersionSaved()
     } catch (error) {
-      message.error((error as Error).message)
+      setNotice({ variant: 'critical', text: (error as Error).message })
     } finally {
       setSaving(false)
     }
@@ -103,77 +101,17 @@ export function VersionPanel({
   const restore = async (version: ProjectVersion) => {
     try {
       await api.restoreVersion(version.id)
-      message.success(`工作区已恢复到 ${version.label}`)
+      setNotice({ variant: 'success', text: `工作区已恢复到 ${version.label}` })
       changes.reload()
       onVersionSaved()
     } catch (error) {
-      message.error((error as Error).message)
+      setNotice({ variant: 'critical', text: (error as Error).message })
     }
   }
 
-  const columns: ColumnsType<ProjectVersion> = [
-    {
-      title: '版本',
-      dataIndex: field<ProjectVersion>('label'),
-      width: 80,
-      render: (label: string) => <Tag color="geekblue">{label}</Tag>,
-    },
-    { title: '说明', dataIndex: field<ProjectVersion>('message') },
-    { title: '文件数', dataIndex: field<ProjectVersion>('file_count'), width: 90 },
-    {
-      title: '总大小',
-      dataIndex: field<ProjectVersion>('total_size'),
-      width: 100,
-      render: formatBytes,
-    },
-    {
-      title: '保存时间',
-      dataIndex: field<ProjectVersion>('created_at'),
-      width: 180,
-      render: formatTime,
-    },
-    {
-      title: '操作',
-      width: 260,
-      key: 'actions',
-      render: (_, version) => (
-        <Space size={0}>
-          <Button
-            type="link"
-            size="small"
-            onClick={() => navigate(`/projects/${projectId}/files/versions/${version.id}`)}
-          >
-            查看详情
-          </Button>
-          {canWrite && (
-            <Popconfirm
-              title={`把工作区恢复到 ${version.label}？`}
-              description="当前未保存的修改会被覆盖。历史版本本身不受影响。"
-              okText="恢复"
-              cancelText="取消"
-              onConfirm={() => restore(version)}
-            >
-              <Button type="link" size="small">
-                恢复到此版本
-              </Button>
-            </Popconfirm>
-          )}
-          {/*
-            派生只需要能看见这个版本，不需要对**当前**空间有写权限——
-            写权限是目标空间的事，由后端和弹窗里的空间列表一起把关。
-            所以这里不看 canWrite，否则只有查看能力的用户就没法把可读内容 Fork
-            到自己的空间，而那正是 Fork 最主要的用法。
-          */}
-          <Button type="link" size="small" onClick={() => setForking(version)}>
-            派生
-          </Button>
-        </Space>
-      ),
-    },
-  ]
-
   return (
-    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+    <div className={styles.panel}>
+      {notice ? <Banner variant={notice.variant} title={notice.text} /> : null}
       {showChanges && (
         <>
           <AsyncSection loading={changes.loading} error={changes.error}>
@@ -192,9 +130,9 @@ export function VersionPanel({
                 {changesExpanded && (
                   <div className={styles.changeList}>
                     {pending.map((change) => (
-                      <Button
+                      <button
                         key={change.path}
-                        type="text"
+                        type="button"
                         className={styles.changeRow}
                         aria-label={`${change.change === 'modified' ? '修改' : change.change === 'added' ? '新增' : '删除'} ${change.path}`}
                         onClick={() => setInspecting(change)}
@@ -211,39 +149,40 @@ export function VersionPanel({
                               ? 'A'
                               : 'D'}
                         </span>
-                      </Button>
+                      </button>
                     ))}
                   </div>
                 )}
               </section>
             ) : null}
           </AsyncSection>
-
           {canWrite && (
-            <Space.Compact style={{ width: '100%' }}>
-              <Input
+            <div className={styles.saveRow}>
+              <TextInput
+                aria-label="版本说明"
                 placeholder="这次改了什么"
-                value={message_}
+                value={message}
                 onChange={(event) => setMessage(event.target.value)}
-                onPressEnter={save}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && pending.length > 0 && !saving) void save()
+                }}
+                block
               />
               <Button
-                type="primary"
-                onClick={save}
+                variant="primary"
+                onClick={() => void save()}
                 loading={saving}
                 disabled={pending.length === 0}
               >
                 保存 Project Version
               </Button>
-            </Space.Compact>
+            </div>
           )}
-
-          <Typography.Text type="secondary">
+          <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>
             Run 只能从确定的 Project Version 发起。保存版本之后，这份内容就固定下来了。
-          </Typography.Text>
+          </Text>
         </>
       )}
-
       {showVersions && (
         <AsyncSection
           loading={versions.loading}
@@ -251,17 +190,77 @@ export function VersionPanel({
           empty={versions.data?.total === 0}
           emptyText="还没有保存过版本"
         >
-          <Table
-            rowKey="id"
-            size="small"
-            dataSource={versions.data?.items ?? []}
-            columns={columns}
-            pagination={tablePagination(versions.data, setPage)}
-          />
+          <table className={styles.versionTable} aria-label="Project 版本">
+            <thead>
+              <tr>
+                <th scope="col">版本</th>
+                <th scope="col">说明</th>
+                <th scope="col">文件数</th>
+                <th scope="col">总大小</th>
+                <th scope="col">保存时间</th>
+                <th scope="col">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(versions.data?.items ?? []).map((version) => (
+                <tr key={version.id}>
+                  <td>
+                    <Label variant="accent">{version.label}</Label>
+                  </td>
+                  <td>{version.message}</td>
+                  <td>{version.file_count}</td>
+                  <td>{formatBytes(version.total_size)}</td>
+                  <td>{formatTime(version.created_at)}</td>
+                  <td>
+                    <div className={styles.actions}>
+                      <Button
+                        variant="invisible"
+                        size="small"
+                        onClick={() =>
+                          navigate(`/projects/${projectId}/files/versions/${version.id}`)
+                        }
+                      >
+                        查看详情
+                      </Button>
+                      {canWrite ? (
+                        <Button
+                          variant="invisible"
+                          size="small"
+                          onClick={() => setRestoring(version)}
+                        >
+                          恢复到此版本
+                        </Button>
+                      ) : null}
+                      <Button variant="invisible" size="small" onClick={() => setForking(version)}>
+                        派生
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {pagination && pagination.total > pagination.pageSize ? (
+            <div className={styles.pager}>
+              <Button
+                size="small"
+                disabled={pagination.current <= 1}
+                onClick={() => pagination.onChange(pagination.current - 1)}
+              >
+                上一页
+              </Button>
+              <Button
+                size="small"
+                disabled={pagination.current * pagination.pageSize >= pagination.total}
+                onClick={() => pagination.onChange(pagination.current + 1)}
+              >
+                下一页
+              </Button>
+            </div>
+          ) : null}
         </AsyncSection>
       )}
-
-      {showVersions && (
+      {showVersions ? (
         <ForkModal
           open={forking !== null}
           version={forking}
@@ -269,9 +268,21 @@ export function VersionPanel({
           onClose={() => setForking(null)}
           onForked={(project) => navigate(`/projects/${project.id}`)}
         />
-      )}
-      {showChanges && (
-        <ChangeDetailDrawer
+      ) : null}
+      {restoring ? (
+        <ConfirmationDialog
+          title={`把工作区恢复到 ${restoring.label}？`}
+          onClose={(gesture) => {
+            if (gesture === 'confirm') void restore(restoring)
+            setRestoring(null)
+          }}
+          confirmButtonContent="恢复"
+        >
+          当前未保存的修改会被覆盖。历史版本本身不受影响。
+        </ConfirmationDialog>
+      ) : null}
+      {showChanges ? (
+        <ChangeDetailDialog
           projectId={projectId}
           change={inspecting}
           changes={pending}
@@ -282,14 +293,14 @@ export function VersionPanel({
             changes.reload()
             onVersionSaved()
           }}
+          onNotice={setNotice}
         />
-      )}
-    </Space>
+      ) : null}
+    </div>
   )
 }
 
-/** 单个未保存变更的内容级详情：基线与工作区两侧并排，可直接放弃。 */
-function ChangeDetailDrawer({
+function ChangeDetailDialog({
   projectId,
   change,
   changes,
@@ -297,6 +308,7 @@ function ChangeDetailDrawer({
   onSelect,
   onClose,
   onDiscarded,
+  onNotice,
 }: {
   projectId: string
   change: WorkingChange | null
@@ -305,12 +317,14 @@ function ChangeDetailDrawer({
   onSelect: (change: WorkingChange) => void
   onClose: () => void
   onDiscarded: () => void
+  onNotice: (notice: { variant: 'success' | 'critical'; text: string }) => void
 }) {
   const [detail, setDetail] = useState<WorkingChangeDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [retryToken, setRetryToken] = useState(0)
   const [discarding, setDiscarding] = useState(false)
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
 
   useEffect(() => {
     if (!change) return
@@ -323,7 +337,7 @@ function ChangeDetailDrawer({
       .then((result) => {
         if (!cancelled) setDetail(result)
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
         if (!cancelled) setLoadError((error as Error).message)
       })
       .finally(() => {
@@ -334,98 +348,109 @@ function ChangeDetailDrawer({
     }
   }, [projectId, change, retryToken])
 
+  if (!change) return null
+
   const discard = async () => {
-    if (!change) return
     setDiscarding(true)
     try {
       await api.discardChanges(projectId, [change.path])
-      message.success(`已放弃 ${change.path} 的未保存变更`)
+      onNotice({ variant: 'success', text: `已放弃 ${change.path} 的未保存变更` })
       onClose()
       onDiscarded()
     } catch (error) {
-      message.error((error as Error).message)
+      onNotice({ variant: 'critical', text: (error as Error).message })
     } finally {
       setDiscarding(false)
     }
   }
 
   return (
-    <Drawer
-      open={change !== null}
-      title={change?.path}
-      width={860}
+    <Dialog
+      title={change.path}
+      width="xlarge"
       onClose={onClose}
-      extra={
-        canWrite &&
-        change && (
-          <Popconfirm
-            title={`放弃 ${change.path} 的未保存变更？`}
-            description="工作区会恢复到最近保存版本的内容。历史版本不受影响，但这次修改无法找回。"
-            okText="放弃变更"
-            cancelText="取消"
-            okButtonProps={{ danger: true }}
-            onConfirm={() => void discard()}
-          >
-            <Button danger loading={discarding}>
-              放弃此变更
-            </Button>
-          </Popconfirm>
-        )
+      footerButtons={
+        canWrite
+          ? [
+              {
+                content: '放弃此变更',
+                buttonType: 'danger',
+                disabled: discarding,
+                loading: discarding,
+                onClick: () => setConfirmDiscard(true),
+              },
+            ]
+          : undefined
       }
     >
-      {changes.length > 0 && (
-        <Space direction="vertical" size={4} style={{ width: '100%', marginBottom: 16 }}>
-          <Typography.Text strong>更改 ({changes.length})</Typography.Text>
+      <div className={styles.detailBody}>
+        <div className={styles.changePicker}>
+          <Text weight="semibold">更改 ({changes.length})</Text>
           {changes.map((item) => (
             <Button
               key={item.path}
-              type={item.path === change?.path ? 'primary' : 'text'}
-              block
+              variant={item.path === change.path ? 'primary' : 'invisible'}
               onClick={() => onSelect(item)}
-              style={{ textAlign: 'left' }}
+              style={{ justifyContent: 'flex-start' }}
             >
-              <Tag color={CHANGE_LABEL[item.change].color}>
+              <Label variant={CHANGE_LABEL[item.change].variant}>
                 {item.change === 'modified' ? 'M' : item.change === 'added' ? 'A' : 'D'}
-              </Tag>
+              </Label>
               {item.path}
             </Button>
           ))}
-        </Space>
-      )}
-      {loading ? (
-        <Spin />
-      ) : loadError ? (
-        <Alert
-          type="error"
-          showIcon
-          message="无法加载变更详情"
-          description={
-            <Space direction="vertical" size="small">
-              <Typography.Text>{loadError}</Typography.Text>
-              <Button onClick={() => setRetryToken((current) => current + 1)}>重试</Button>
-            </Space>
-          }
-        />
-      ) : detail ? (
-        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-          <Space wrap size={[8, 8]}>
-            <Tag color={CHANGE_LABEL[detail.change].color}>{CHANGE_LABEL[detail.change].text}</Tag>
-            {detail.previous?.truncated && (
-              <Typography.Text type="secondary">基线内容过长，仅显示前 256 KB</Typography.Text>
-            )}
-            {detail.current?.truncated && (
-              <Typography.Text type="secondary">工作区内容过长，仅显示前 256 KB</Typography.Text>
-            )}
-          </Space>
-          <DiffView
-            previous={detail.previous?.content ?? null}
-            current={detail.current?.content ?? null}
-            previousEmpty="此路径在基线版本中不存在"
-            currentEmpty="文件已被删除"
-          />
-        </Space>
+        </div>
+        {loading ? (
+          <Spinner />
+        ) : loadError ? (
+          <Banner variant="critical" title="无法加载变更详情">
+            <Banner.Description>
+              <Stack gap="condensed">
+                <Text>{loadError}</Text>
+                <Button onClick={() => setRetryToken((current) => current + 1)}>重试</Button>
+              </Stack>
+            </Banner.Description>
+          </Banner>
+        ) : detail ? (
+          <Stack gap="normal">
+            <Stack direction="horizontal" gap="condensed" align="center">
+              <Label variant={CHANGE_LABEL[detail.change].variant}>
+                {CHANGE_LABEL[detail.change].text}
+              </Label>
+              {detail.previous?.truncated ? (
+                <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>
+                  基线内容过长，仅显示前 256 KB
+                </Text>
+              ) : null}
+              {detail.current?.truncated ? (
+                <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>
+                  工作区内容过长，仅显示前 256 KB
+                </Text>
+              ) : null}
+            </Stack>
+            <DiffView
+              previous={detail.previous?.content ?? null}
+              current={detail.current?.content ?? null}
+              previousEmpty="此路径在基线版本中不存在"
+              currentEmpty="文件已被删除"
+            />
+          </Stack>
+        ) : null}
+      </div>
+      {confirmDiscard ? (
+        <ConfirmationDialog
+          title={`放弃 ${change.path} 的未保存变更？`}
+          onClose={(gesture) => {
+            if (gesture === 'confirm') void discard()
+            setConfirmDiscard(false)
+          }}
+          confirmButtonContent="放弃变更"
+          confirmButtonType="danger"
+        >
+          工作区会恢复到最近保存版本的内容。历史版本不受影响，但这次修改无法找回。
+        </ConfirmationDialog>
       ) : null}
-    </Drawer>
+    </Dialog>
   )
 }
 
@@ -442,9 +467,9 @@ function DiffView({
 }) {
   if (previous === null || current === null) {
     return (
-      <Typography.Text type="secondary">
+      <Text style={{ color: 'var(--fgColor-muted)' }}>
         {previous === null ? previousEmpty : currentEmpty}
-      </Typography.Text>
+      </Text>
     )
   }
   const oldLines = previous.split('\n')
@@ -455,66 +480,39 @@ function DiffView({
     next: number | ''
     text: string
   }> = []
-  let old = 0
-  let next = 0
-  while (old < oldLines.length || next < newLines.length) {
-    if (oldLines[old] === newLines[next]) {
-      rows.push({ kind: 'same', old: old + 1, next: next + 1, text: oldLines[old] ?? '' })
-      old++
-      next++
+  let oldIndex = 0
+  let nextIndex = 0
+  while (oldIndex < oldLines.length || nextIndex < newLines.length) {
+    if (oldLines[oldIndex] === newLines[nextIndex]) {
+      rows.push({
+        kind: 'same',
+        old: oldIndex + 1,
+        next: nextIndex + 1,
+        text: oldLines[oldIndex] ?? '',
+      })
+      oldIndex += 1
+      nextIndex += 1
     } else if (
-      old < oldLines.length &&
-      (next >= newLines.length || !newLines.slice(next + 1).includes(oldLines[old]!))
+      oldIndex < oldLines.length &&
+      (nextIndex >= newLines.length || !newLines.slice(nextIndex + 1).includes(oldLines[oldIndex]!))
     ) {
-      rows.push({ kind: 'remove', old: old + 1, next: '', text: oldLines[old]! })
-      old++
+      rows.push({ kind: 'remove', old: oldIndex + 1, next: '', text: oldLines[oldIndex]! })
+      oldIndex += 1
     } else {
-      rows.push({ kind: 'add', old: '', next: next + 1, text: newLines[next] ?? '' })
-      next++
+      rows.push({ kind: 'add', old: '', next: nextIndex + 1, text: newLines[nextIndex] ?? '' })
+      nextIndex += 1
     }
   }
   return (
-    <div
-      style={{
-        overflowX: 'auto',
-        border: '1px solid #d0d7de',
-        borderRadius: 6,
-        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-        fontSize: 12,
-      }}
-    >
+    <div className={styles.diff}>
       {rows.map((row, index) => (
         <div
           key={`${row.kind}-${index}`}
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '48px 48px 1fr',
-            whiteSpace: 'pre',
-            background:
-              row.kind === 'remove' ? '#ffebe9' : row.kind === 'add' ? '#dafbe1' : undefined,
-          }}
+          className={`${styles.diffRow} ${row.kind === 'remove' ? styles.diffRemove : ''} ${row.kind === 'add' ? styles.diffAdd : ''}`}
         >
-          <span
-            style={{
-              padding: '2px 8px',
-              textAlign: 'right',
-              color: '#6e7781',
-              borderRight: '1px solid #d0d7de',
-            }}
-          >
-            {row.old}
-          </span>
-          <span
-            style={{
-              padding: '2px 8px',
-              textAlign: 'right',
-              color: '#6e7781',
-              borderRight: '1px solid #d0d7de',
-            }}
-          >
-            {row.next}
-          </span>
-          <span style={{ padding: '2px 12px' }}>
+          <span className={styles.diffNumber}>{row.old}</span>
+          <span className={styles.diffNumber}>{row.next}</span>
+          <span className={styles.diffText}>
             <b>{row.kind === 'remove' ? '−' : row.kind === 'add' ? '+' : ' '}</b> {row.text}
           </span>
         </div>

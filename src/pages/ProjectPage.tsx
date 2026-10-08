@@ -6,10 +6,9 @@ import {
   TriangleDownIcon,
   VersionsIcon,
 } from '@primer/octicons-react'
+import { GitBranchIcon } from '@primer/octicons-react'
 import { Button as PrimerButton, SelectPanel, Text } from '@primer/react'
 import type { ActionListItemInput } from '@primer/react/deprecated'
-import { BranchesOutlined } from '@ant-design/icons'
-import { Card, Tag } from 'antd'
 import { useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 
@@ -290,7 +289,7 @@ function ProjectAbout({ project, projectId }: { project: Project | undefined; pr
           </div>
           <div>
             <dt>Visibility</dt>
-            <dd>{project.visibility}</dd>
+            <dd>{project.visibility === 'public' ? 'Public' : '仅成员可见'}</dd>
           </div>
           {defaultEnvironment && (
             <div>
@@ -420,7 +419,7 @@ export function ProjectPage({ project }: { project: AsyncResource<Project | unde
         contextControls={<FilesContextControls projectId={projectId} mode="working" />}
       />
     ) : view === 'changes' ? (
-      <Card>
+      <PrimerListCard padded>
         <VersionPanel
           section="changes"
           projectId={projectId}
@@ -429,9 +428,9 @@ export function ProjectPage({ project }: { project: AsyncResource<Project | unde
           refreshToken={token}
           onVersionSaved={bump}
         />
-      </Card>
+      </PrimerListCard>
     ) : view === 'versions' ? (
-      <Card>
+      <PrimerListCard padded>
         <VersionPanel
           section="versions"
           projectId={projectId}
@@ -440,7 +439,7 @@ export function ProjectPage({ project }: { project: AsyncResource<Project | unde
           refreshToken={token}
           onVersionSaved={bump}
         />
-      </Card>
+      </PrimerListCard>
     ) : view === 'file' ? (
       <AsyncSection
         loading={versionId ? version.loading : false}
@@ -498,7 +497,7 @@ export function ProjectPage({ project }: { project: AsyncResource<Project | unde
         </AsyncState>
       </PrimerListCard>
     ) : view === 'configurations' ? (
-      <Card>
+      <PrimerListCard padded>
         <RunConfigurationPanel
           projectId={projectId}
           access={project.data}
@@ -506,7 +505,7 @@ export function ProjectPage({ project }: { project: AsyncResource<Project | unde
           onSubmitRun={setSubmitting}
           onChanged={bump}
         />
-      </Card>
+      </PrimerListCard>
     ) : view === 'activity' ? (
       <ListCard padded>
         <ActivityFeed
@@ -602,12 +601,13 @@ export function ProjectPage({ project }: { project: AsyncResource<Project | unde
 function ForkSourceTag({ source }: { source: ForkSource }) {
   const label = `派生自 ${source.source_project_name} · ${source.source_version_label}`
   return (
-    <Tag icon={<BranchesOutlined />}>
+    <Text size="small">
+      <GitBranchIcon size={16} />{' '}
       {source.source_project_id ? (
         <Link to={`/projects/${source.source_project_id}`}>{label}</Link>
       ) : (
         label
       )}
-    </Tag>
+    </Text>
   )
 }

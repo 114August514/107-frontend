@@ -169,10 +169,22 @@ describe('FileBrowser', () => {
   })
 
   it('只读场景不暴露任何写入口', async () => {
-    mocks.listFiles.mockResolvedValue(files)
+    mocks.listFiles.mockResolvedValue([
+      ...files,
+      {
+        path: 'src/main.py',
+        size: 64,
+        content_hash: 'def',
+        updated_at: '2026-08-12T11:00:00Z',
+      },
+    ])
 
     renderBrowser(reader)
     await screen.findByText('train.py')
+    expect(screen.getByText('Working State')).toBeInTheDocument()
+    const directory = screen.getByRole('link', { name: 'src' })
+    const file = screen.getByRole('button', { name: 'train.py' })
+    expect(directory.compareDocumentPosition(file) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     expect(screen.queryByRole('button', { name: /上传文件/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /上传压缩包/ })).not.toBeInTheDocument()

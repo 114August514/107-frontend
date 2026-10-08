@@ -1,6 +1,4 @@
 import { CreateAssetPage } from './pages/CreateAssetPage'
-import { App as AntdApp, ConfigProvider } from 'antd'
-import zhCN from 'antd/locale/zh_CN'
 import { lazy, Suspense } from 'react'
 import { matchPath, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 
@@ -37,7 +35,6 @@ import { SharedResourceVersionPage } from './pages/SharedResourceVersionPage'
 import { VersionDetailPage } from './pages/VersionDetailPage'
 import { UserGroupPage } from './pages/UserGroupPage'
 import { PrimerRoot } from './primer/setup'
-import { theme } from './theme'
 
 const DesignSystemPage = lazy(() =>
   import('./pages/design-system/DesignSystemPage').then((module) => ({
@@ -72,13 +69,9 @@ export function App() {
 
 function ProductApp() {
   return (
-    <ConfigProvider locale={zhCN} theme={theme}>
-      <AntdApp>
-        <AuthProvider>
-          <AuthGate />
-        </AuthProvider>
-      </AntdApp>
-    </ConfigProvider>
+    <AuthProvider>
+      <AuthGate />
+    </AuthProvider>
   )
 }
 

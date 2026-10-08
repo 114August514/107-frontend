@@ -12,9 +12,8 @@ make build
 [索引仓库](https://github.com/114August514/107-workspace)。
 本文中的“索引仓库根目录”指完整集成工作区。
 
-107 Workspace 控制台。React + TypeScript + Vite；目标组件系统使用 Primer React、
-Primer Primitives、Primer Octicons 与 CSS Modules。当前 Ant Design 界面是迁移期间的
-旧实现，不是新页面继续扩展的默认方案。
+107 Workspace 控制台。React + TypeScript + Vite。组件系统使用 Primer React、
+Primer Primitives、Primer Octicons 与 CSS Modules。Ant Design 已从界面和依赖中移除。
 工具链统一使用 Node.js 24 LTS 与 pnpm 11；版本约束同时记录在 `.node-version`、
 `package.json` 和 CI 中。
 
@@ -60,20 +59,17 @@ tests/
 
 ## 组件系统与迁移边界
 
-目标前端技术选型以 [`docs/product/design.md`](https://github.com/114August514/107-workspace/blob/main/docs/product/design.md) 为准。
-Primer 迁移由 [GitHub Issue #16](https://github.com/114August514/107-workspace/issues/16)
-统一跟踪，但迁移进度不改变产品设计或 API 契约。
+目标前端技术选型以
+[`docs/product/design.md`](https://github.com/114August514/107-workspace/blob/main/docs/product/design.md)
+为准。
 用户可见术语、状态反馈和操作文案统一遵循
 [`docs/product/ui-copy.md`](https://github.com/114August514/107-workspace/blob/main/docs/product/ui-copy.md)，页面不得自行定义竞争规则。
 
 迁移遵守以下边界：
 
-1. 按完整用户表面迁移，不按 Button、Tag、Modal 等组件类别横切全仓；
-2. 迁移期间允许未迁移页面继续使用 Ant Design，但同一个已迁移表面不得混用两套组件；
-3. 已迁移文件不得继续导入 `antd` 或 `@ant-design/icons`；
-4. 新增页面默认使用 Primer；只在真实切片出现复用需求时提取公共组件；
-5. 视觉迁移不顺便修改领域术语、API、权限判断或状态管理架构；
-6. 最后一个清理切片删除 Ant Design Provider、主题、专属 helper 和直接依赖，不保留兼容别名。
+1. 界面组件使用 Primer；不要重新引入 `antd` 或 `@ant-design/icons`；
+2. 新增页面只在真实切片出现复用需求时提取公共组件；
+3. 视觉调整不顺便修改领域术语、API、权限判断或状态管理架构。
 
 ### 样式与组件
 
@@ -111,8 +107,7 @@ UI 改动除类型检查和生产构建外，还必须在真实浏览器中检�
 - 加载、空数据和请求失败；
 - 发生变更的表单、浮层或下载等关键交互。
 
-PR 提供与改动范围相称的关键状态截图。组件测试断言用户可观察行为，不绑定 Primer 或
-Ant Design 的私有 DOM 和 class。
+PR 提供与改动范围相称的关键状态截图。组件测试断言用户可观察行为，不绑定 Primer 的私有 DOM 和 class。
 
 ## 接口类型来自契约
 
@@ -178,9 +173,9 @@ pnpm run generate:api     # 仅重新生成类型；平时在根目录用 make c
 
 索引仓库根目录执行 `make check-frontend` 会跑与 CI 相同的前端检查。
 
-当前 Ant Design UI 是后续迁移的旧实现，因此不保留绑定组件库私有 class 或视觉偏好的
-测试。新组件和页面切片进入实现时，按 [`../docs/testing/README.md`](https://github.com/114August514/107-workspace/blob/main/docs/testing/README.md)
-定义的 unit、component、feature 和 e2e 粒度保护用户可观察行为。
+组件测试断言用户可观察行为，不绑定 Primer 的私有 DOM 和 class。按
+[`../docs/testing/README.md`](https://github.com/114August514/107-workspace/blob/main/docs/testing/README.md)
+定义的 unit、component、feature 和 e2e 粒度保护这些行为。
 
 ## 关于展示内容
 

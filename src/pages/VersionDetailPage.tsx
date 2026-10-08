@@ -1,4 +1,4 @@
-import { Button, Popconfirm, Space, Tabs, Tag, Typography, message } from 'antd'
+import { Button, ConfirmationDialog, Label, Text } from '@primer/react'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
@@ -20,6 +20,9 @@ export function VersionDetailPage() {
   const navigate = useNavigate()
   const [forking, setForking] = useState(false)
   const [running, setRunning] = useState(false)
+  const [confirmRestore, setConfirmRestore] = useState(false)
+  const [tab, setTab] = useState<'files' | 'diff'>('files')
+  const [notice, setNotice] = useState<string | null>(null)
 
   const version = useAsync<ProjectVersionDetail>(() => api.getVersion(versionId), [versionId])
   const project = useAsync<Project | undefined>(
@@ -34,15 +37,15 @@ export function VersionDetailPage() {
     if (!version.data || !project.data) return
     try {
       await api.restoreVersion(versionId)
-      message.success(`已恢复到 ${version.data.label}`)
       navigate(`/projects/${version.data.project_id}`)
     } catch (error) {
-      message.error((error as Error).message)
+      setNotice((error as Error).message)
     }
   }
 
   return (
     <Stack gap="large">
+      {notice ? <Text style={{ color: 'var(--fgColor-danger)' }}>{notice}</Text> : null}
       <AsyncSection loading={version.loading} error={version.error}>
         {version.data && project.data && (
           <PageHeader
@@ -64,32 +67,18 @@ export function VersionDetailPage() {
               { title: `Version ${version.data.label}` },
             ]}
             title={version.data.label}
-            tags={<Tag color="geekblue">不可变版本</Tag>}
+            tags={<Label variant="accent">不可变版本</Label>}
             description={version.data.message}
             actions={
-              <Space>
+              <>
                 {canRun && (
-                  <Button type="primary" onClick={() => setRunning(true)}>
+                  <Button variant="primary" onClick={() => setRunning(true)}>
                     运行此版本
                   </Button>
                 )}
-                {canWrite && (
-                  <Popconfirm
-                    title={`把工作区恢复到 ${version.data.label}？`}
-                    description="当前未保存的修改会被覆盖。历史版本本身不受影响。"
-                    okText="恢复"
-                    cancelText="取消"
-                    onConfirm={restore}
-                  >
-                    <Button>恢复到此版本</Button>
-                  </Popconfirm>
-                )}
-                {/*
-                  派生只需要能看见这个版本，不需要对当前空间有写权限。
-                  写权限是目标空间的事，由后端和弹窗里的空间列表一起把关。
-                */}
+                {canWrite && <Button onClick={() => setConfirmRestore(true)}>恢复到此版本</Button>}
                 <Button onClick={() => setForking(true)}>派生</Button>
-              </Space>
+              </>
             }
           />
         )}
@@ -98,47 +87,55 @@ export function VersionDetailPage() {
       {version.data && (
         <Stack>
           <AsyncSection loading={version.loading} error={version.error}>
-            <Space size="large">
-              <Typography.Text type="secondary">创建人：{version.data.created_by}</Typography.Text>
-              <Typography.Text type="secondary">
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--base-size-16)' }}>
+              <Text style={{ color: 'var(--fgColor-muted)' }}>
+                创建人：{version.data.created_by}
+              </Text>
+              <Text style={{ color: 'var(--fgColor-muted)' }}>
                 保存时间：{formatTime(version.data.created_at)}
-              </Typography.Text>
-              <Typography.Text type="secondary">文件数：{version.data.file_count}</Typography.Text>
-              <Typography.Text type="secondary">
+              </Text>
+              <Text style={{ color: 'var(--fgColor-muted)' }}>
+                文件数：{version.data.file_count}
+              </Text>
+              <Text style={{ color: 'var(--fgColor-muted)' }}>
                 总大小：{formatBytes(version.data.total_size)}
-              </Typography.Text>
-            </Space>
+              </Text>
+            </div>
           </AsyncSection>
 
-          <Tabs
-            defaultActiveKey="files"
-            items={[
-              {
-                key: 'files',
-                label: '文件',
-                children: (
-                  <FileBrowser
-                    projectId={version.data.project_id}
-                    access={project.data}
-                    onChanged={() => undefined}
-                    basePath={`/projects/${version.data.project_id}/files/versions/${version.data.id}`}
-                    version={version.data}
-                  />
-                ),
-              },
-              {
-                key: 'diff',
-                label: '版本比较',
-                children: (
-                  <VersionDiffPanel
-                    projectId={version.data.project_id}
-                    currentVersionId={versionId}
-                    currentVersionSequence={version.data.sequence}
-                  />
-                ),
-              },
-            ]}
-          />
+          <div role="tablist" aria-label="版本内容">
+            <Button
+              role="tab"
+              aria-selected={tab === 'files'}
+              variant={tab === 'files' ? 'primary' : 'invisible'}
+              onClick={() => setTab('files')}
+            >
+              文件
+            </Button>
+            <Button
+              role="tab"
+              aria-selected={tab === 'diff'}
+              variant={tab === 'diff' ? 'primary' : 'invisible'}
+              onClick={() => setTab('diff')}
+            >
+              版本比较
+            </Button>
+          </div>
+          {tab === 'files' ? (
+            <FileBrowser
+              projectId={version.data.project_id}
+              access={project.data}
+              onChanged={() => undefined}
+              basePath={`/projects/${version.data.project_id}/files/versions/${version.data.id}`}
+              version={version.data}
+            />
+          ) : (
+            <VersionDiffPanel
+              projectId={version.data.project_id}
+              currentVersionId={versionId}
+              currentVersionSequence={version.data.sequence}
+            />
+          )}
         </Stack>
       )}
 
@@ -158,10 +155,22 @@ export function VersionDetailPage() {
             version={version.data}
             sourceProjectName={project.data?.name ?? ''}
             onClose={() => setForking(false)}
-            onForked={(p) => navigate(`/projects/${p.id}`)}
+            onForked={(created) => navigate(`/projects/${created.id}`)}
           />
         </>
       )}
+      {confirmRestore && version.data ? (
+        <ConfirmationDialog
+          title={`把工作区恢复到 ${version.data.label}？`}
+          onClose={(gesture) => {
+            if (gesture === 'confirm') void restore()
+            setConfirmRestore(false)
+          }}
+          confirmButtonContent="恢复"
+        >
+          当前未保存的修改会被覆盖。历史版本本身不受影响。
+        </ConfirmationDialog>
+      ) : null}
     </Stack>
   )
 }

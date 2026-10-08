@@ -2,11 +2,14 @@ import { FileDirectoryIcon, FileIcon, HomeIcon, PlusIcon, UploadIcon } from '@pr
 import {
   ActionList,
   ActionMenu,
+  Banner,
   Button as PrimerButton,
   ConfirmationDialog,
+  Dialog,
+  FormControl,
   Link as PrimerLink,
+  TextInput,
 } from '@primer/react'
-import { Alert, Button, Drawer, Form, Input, Space, Tag, message } from 'antd'
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../../api/client'
@@ -121,7 +124,9 @@ export function FileBrowser({
     [files.data, currentPath],
   )
   const [prompt, setPrompt] = useState<PathPrompt | null>(null)
-  const [promptForm] = Form.useForm<{ path: string }>()
+  const [promptPath, setPromptPath] = useState('')
+  const [promptError, setPromptError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [uploads, setUploads] = useState<UploadTask[]>([])
   const [deleteDirectoryOpen, setDeleteDirectoryOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -190,29 +195,40 @@ export function FileBrowser({
     }
   }
 
+  const openPrompt = (next: PathPrompt, path = '') => {
+    setPromptPath(path)
+    setPromptError(null)
+    setPrompt(next)
+  }
+
   const submitPrompt = async () => {
     if (!prompt) return
-    const values = await promptForm.validateFields()
+    const path = promptPath.trim()
+    if (!path) {
+      setPromptError('请填写路径')
+      return
+    }
+    setPromptError(null)
     try {
       switch (prompt.mode) {
         case 'new-file':
-          await api.writeFile(projectId, values.path, '')
+          await api.writeFile(projectId, path, '')
           break
         case 'mkdir':
-          await api.createDirectory(projectId, values.path)
+          await api.createDirectory(projectId, path)
           break
         case 'rename':
-          await api.movePath(projectId, prompt.source ?? '', values.path)
+          await api.movePath(projectId, prompt.source ?? '', path)
           break
         case 'copy':
-          await api.copyPath(projectId, prompt.source ?? '', values.path)
+          await api.copyPath(projectId, prompt.source ?? '', path)
           break
       }
-      promptForm.resetFields()
       setPrompt(null)
+      setPromptPath('')
       refresh()
     } catch (error) {
-      message.error((error as Error).message)
+      setActionError((error as Error).message)
     }
   }
 
@@ -222,7 +238,7 @@ export function FileBrowser({
       setDeleteDirectoryOpen(false)
       refresh()
     } catch (error) {
-      message.error((error as Error).message)
+      setActionError((error as Error).message)
     }
   }
 
@@ -278,22 +294,10 @@ export function FileBrowser({
       <ActionMenu.Button leadingVisual={PlusIcon}>添加文件</ActionMenu.Button>
       <ActionMenu.Overlay align="end" width="auto">
         <ActionList>
-          <ActionList.Item
-            onSelect={() => {
-              promptForm.resetFields()
-              setPrompt({ mode: 'new-file' })
-            }}
-          >
+          <ActionList.Item onSelect={() => openPrompt({ mode: 'new-file' })}>
             新建文件
           </ActionList.Item>
-          <ActionList.Item
-            onSelect={() => {
-              promptForm.resetFields()
-              setPrompt({ mode: 'mkdir' })
-            }}
-          >
-            新建目录
-          </ActionList.Item>
+          <ActionList.Item onSelect={() => openPrompt({ mode: 'mkdir' })}>新建目录</ActionList.Item>
           <ActionList.Item onSelect={() => archiveInputRef.current?.click()}>
             上传压缩包（zip）
           </ActionList.Item>
@@ -308,18 +312,14 @@ export function FileBrowser({
         <ActionMenu.Overlay align="end" width="auto">
           <ActionList>
             <ActionList.Item
-              onSelect={() => {
-                promptForm.setFieldsValue({ path: currentPath })
-                setPrompt({ mode: 'rename', source: currentPath })
-              }}
+              onSelect={() => openPrompt({ mode: 'rename', source: currentPath }, currentPath)}
             >
               重命名目录
             </ActionList.Item>
             <ActionList.Item
-              onSelect={() => {
-                promptForm.setFieldsValue({ path: `${currentPath}-copy` })
-                setPrompt({ mode: 'copy', source: currentPath })
-              }}
+              onSelect={() =>
+                openPrompt({ mode: 'copy', source: currentPath }, `${currentPath}-copy`)
+              }
             >
               复制目录
             </ActionList.Item>
@@ -376,30 +376,26 @@ export function FileBrowser({
         )}
       </div>
       {breadcrumb}
+      {actionError ? <Banner variant="critical" title={actionError} /> : null}
       {uploads.length > 0 && (
-        <Alert
-          type={failedUploads.length > 0 ? 'warning' : 'success'}
-          showIcon
-          message={
-            <Space wrap size={[8, 8]}>
+        <Banner
+          variant={failedUploads.length > 0 ? 'warning' : 'success'}
+          title={failedUploads.length > 0 ? '有文件没有上传成功' : '上传记录'}
+          description={
+            <span>
               {uploads.map((task) => (
-                <Tag
-                  key={task.key}
-                  color={
-                    task.status === 'success' ? 'green' : task.status === 'failed' ? 'red' : 'blue'
-                  }
-                >
+                <span key={task.key}>
                   {task.name}
                   {task.status === 'uploading' && '（上传中）'}
-                  {task.status === 'failed' && `：${task.detail ?? '失败'}`}
-                </Tag>
+                  {task.status === 'failed' && `：${task.detail ?? '失败'}`}{' '}
+                </span>
               ))}
-            </Space>
+            </span>
           }
-          action={
-            <Button size="small" onClick={() => setUploads([])}>
+          primaryAction={
+            <PrimerButton size="small" onClick={() => setUploads([])}>
               清除记录
-            </Button>
+            </PrimerButton>
           }
         />
       )}
@@ -411,20 +407,25 @@ export function FileBrowser({
           canWrite ? '还没有文件。先新建一个，再保存 Project Version。' : '这个 Project 还没有文件'
         }
       >
-        <table className={styles.fileTable} aria-label="文件列表">
-          <thead>
-            <tr>
-              <th scope="col">名称</th>
-              <th scope="col" className={styles.metaCell}>
-                大小
-              </th>
-              <th scope="col" className={styles.metaCell}>
-                最近修改
-              </th>
-            </tr>
-          </thead>
-          <tbody>{rows}</tbody>
-        </table>
+        <div className={styles.fileBox}>
+          <div className={styles.fileBoxHeader}>
+            <span className={styles.fileBoxTitle}>{version ? version.label : 'Working State'}</span>
+            <span className={styles.fileBoxMessage}>
+              {version?.message || (version ? '不可变快照' : '这些文件还没有写入 Project Version')}
+            </span>
+            <span className={styles.fileBoxCount}>{rows.length} 项</span>
+          </div>
+          <table className={styles.fileTable} aria-label="文件列表">
+            <thead className={styles.visuallyHidden}>
+              <tr>
+                <th scope="col">名称</th>
+                <th scope="col">大小</th>
+                <th scope="col">最近修改</th>
+              </tr>
+            </thead>
+            <tbody>{rows}</tbody>
+          </table>
+        </div>
       </AsyncSection>
       {readmeEntry && (
         <AsyncSection loading={readme.loading} error={readme.error}>
@@ -452,55 +453,61 @@ export function FileBrowser({
           删除后，该目录中的文件也会从 Working State 删除。
         </ConfirmationDialog>
       )}
-      <PathPromptDrawer
+      <PathPromptDialog
         prompt={prompt}
-        form={promptForm}
+        path={promptPath}
+        pathError={promptError}
+        onPathChange={setPromptPath}
         onCancel={() => setPrompt(null)}
-        onOk={submitPrompt}
+        onOk={() => void submitPrompt()}
       />
     </div>
   )
 }
 
 /** 当前目录级的新建文件与新建目录表单。 */
-function PathPromptDrawer({
+function PathPromptDialog({
   prompt,
-  form,
+  path,
+  pathError,
+  onPathChange,
   onCancel,
   onOk,
 }: {
   prompt: PathPrompt | null
-  form: ReturnType<typeof Form.useForm<{ path: string }>>[0]
+  path: string
+  pathError: string | null
+  onPathChange: (path: string) => void
   onCancel: () => void
   onOk: () => void
 }) {
-  const copy = prompt ? PATH_PROMPT_COPY[prompt.mode] : null
+  if (!prompt) return null
+  const copy = PATH_PROMPT_COPY[prompt.mode]
   return (
-    <Drawer
-      open={prompt !== null}
-      title={copy?.title}
-      placement="right"
-      width={420}
+    <Dialog
+      title={copy.title}
       onClose={onCancel}
+      footerButtons={[
+        { content: '取消', onClick: onCancel },
+        { content: '确定', buttonType: 'primary', onClick: onOk },
+      ]}
     >
-      {prompt && (
-        <Form form={form} layout="vertical" onFinish={onOk}>
-          <Form.Item
-            name="path"
-            label={copy?.label}
-            rules={[{ required: true, message: '请填写路径' }]}
-            extra={copy?.extra}
-          >
-            <Input placeholder="src/train.py" />
-          </Form.Item>
-          <Space>
-            <Button type="primary" onClick={onOk}>
-              确定
-            </Button>
-            <Button onClick={onCancel}>取消</Button>
-          </Space>
-        </Form>
-      )}
-    </Drawer>
+      <FormControl required>
+        <FormControl.Label>{copy.label}</FormControl.Label>
+        <TextInput
+          value={path}
+          placeholder="src/train.py"
+          onChange={(event) => onPathChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') onOk()
+          }}
+          block
+        />
+        {copy.extra ? <FormControl.Caption>{copy.extra}</FormControl.Caption> : null}
+        {pathError ? (
+          <FormControl.Validation variant="error">{pathError}</FormControl.Validation>
+        ) : null}
+      </FormControl>
+    </Dialog>
   )
 }

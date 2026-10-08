@@ -1,6 +1,5 @@
-import { Tooltip, Typography } from 'antd'
+import { Text } from '@primer/react'
 
-import { fontFamilyCode } from '../../theme'
 import { formatRelative, formatTime } from '../../utils/format'
 
 interface MonoProps {
@@ -10,38 +9,43 @@ interface MonoProps {
   copyable?: boolean
 }
 
-/**
- * 标识符：ID、路径、命令、调度任务号。
- *
- * 一律等宽显示。这不是装饰——等宽字体下 `run_0980` 和 `run_098O` 一眼能看出
- * 不一样，比例字体下看不出来。**用户要拿这些串去和别处比对**，
- * 比如把 Run ID 报给助教、把调度任务号贴到集群命令里。
- */
+/** 标识符等宽显示。字体使用 Primer monospace。 */
 export function Mono({ children, truncate, copyable }: MonoProps) {
-  const shown = truncate && children.length > truncate ? children.slice(0, truncate) : children
-  const element = (
-    <Typography.Text
-      style={{ fontFamily: fontFamilyCode, fontSize: 12 }}
-      copyable={copyable ? { text: children } : false}
+  const shown =
+    truncate && children.length > truncate ? `${children.slice(0, truncate)}…` : children
+  return (
+    <Text
+      as="code"
+      size="small"
+      title={shown === children ? undefined : children}
+      style={{ fontFamily: 'var(--fontStack-monospace)' }}
+      onClick={
+        copyable
+          ? () => {
+              void navigator.clipboard?.writeText(children)
+            }
+          : undefined
+      }
     >
       {shown}
-    </Typography.Text>
+    </Text>
   )
-  // 截断了就得让人能看到完整值，否则复制出来的和看到的对不上
-  return shown === children ? element : <Tooltip title={children}>{element}</Tooltip>
 }
 
-/**
- * 相对时间，悬停显示准确时刻。
- *
- * 「3 小时前」适合扫，「2026-07-26 14:03:11」适合排查。两个都要，
- * 所以默认显示前者，把后者放进 tooltip。
- */
+/** 相对时间，title 保留精确时刻。 */
 export function RelativeTime({ value }: { value: string | null | undefined }) {
-  if (!value) return <Typography.Text type="secondary">—</Typography.Text>
+  if (!value) {
+    return (
+      <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>
+        —
+      </Text>
+    )
+  }
   return (
-    <Tooltip title={formatTime(value)}>
-      <Typography.Text type="secondary">{formatRelative(value)}</Typography.Text>
-    </Tooltip>
+    <time dateTime={value} title={formatTime(value)}>
+      <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>
+        {formatRelative(value)}
+      </Text>
+    </time>
   )
 }
