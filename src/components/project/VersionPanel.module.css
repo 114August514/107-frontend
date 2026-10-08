@@ -51,9 +51,13 @@
   gap: var(--base-size-8);
   padding: var(--base-size-12) var(--base-size-16);
   color: var(--fgColor-default);
+  font: inherit;
   text-align: left;
-  border-top: 1px solid var(--borderColor-muted);
+  border: 0;
+  border-top: var(--borderWidth-thin) solid var(--borderColor-muted);
   border-radius: 0;
+  background: transparent;
+  cursor: pointer;
 }
 
 .changeRow:hover {
@@ -95,4 +99,74 @@
 
 .removed {
   color: var(--fgColor-danger);
+}
+
+.panel,
+.detailBody,
+.changePicker {
+  display: grid;
+  gap: var(--base-size-16);
+}
+
+.saveRow {
+  display: flex;
+  gap: var(--base-size-8);
+}
+
+.versionTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.versionTable th,
+.versionTable td {
+  padding: var(--base-size-8) var(--base-size-12);
+  border-bottom: var(--borderWidth-thin) solid var(--borderColor-muted);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--base-size-4);
+}
+
+.pager {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--base-size-8);
+}
+
+.diff {
+  overflow-x: auto;
+  border: var(--borderWidth-thin) solid var(--borderColor-default);
+  border-radius: var(--borderRadius-medium);
+  font-family: var(--fontStack-monospace);
+  font-size: var(--text-body-size-small);
+}
+
+.diffRow {
+  display: grid;
+  grid-template-columns: 3rem 3rem minmax(0, 1fr);
+  white-space: pre;
+}
+
+.diffRemove {
+  background: var(--bgColor-danger-muted);
+}
+
+.diffAdd {
+  background: var(--bgColor-success-muted);
+}
+
+.diffNumber {
+  padding: var(--base-size-2) var(--base-size-8);
+  color: var(--fgColor-muted);
+  text-align: right;
+  border-right: var(--borderWidth-thin) solid var(--borderColor-default);
+}
+
+.diffText {
+  padding: var(--base-size-2) var(--base-size-12);
 }

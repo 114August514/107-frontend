@@ -79,9 +79,8 @@ describe('ForkModal target eligibility', () => {
     renderModal()
 
     const target = await screen.findByRole('combobox', { name: '创建到哪个 User Group' })
-    fireEvent.mouseDown(target)
-    fireEvent.click(await screen.findByText('Writer Lab'))
-    expect(screen.getByText('Read-only Lab')).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Read-only Lab' })).toBeInTheDocument()
+    fireEvent.change(target, { target: { value: 'grp_writer' } })
 
     fireEvent.click(screen.getByRole('button', { name: /创\s*建/ }))
     await waitFor(() =>

@@ -1,4 +1,4 @@
-import { Space, Tag, Typography } from 'antd'
+import { Label, Stack, Text } from '@primer/react'
 
 import type { InputBinding } from '../../api/types'
 
@@ -9,34 +9,38 @@ interface Props {
 }
 
 function availabilityTag(checking: boolean, preflightOk: boolean | null) {
-  if (checking) return <Tag>检查中</Tag>
-  if (preflightOk === true) return <Tag color="green">当前可用</Tag>
-  if (preflightOk === false) return <Tag color="orange">未确认，请查看检查问题</Tag>
-  return <Tag>尚未检查</Tag>
+  if (checking) return <Label>检查中</Label>
+  if (preflightOk === true) return <Label variant="success">当前可用</Label>
+  if (preflightOk === false) return <Label variant="attention">未确认，请查看检查问题</Label>
+  return <Label>尚未检查</Label>
 }
 
 export function InputBindingSummary({ bindings, checking, preflightOk }: Props) {
   if (bindings.length === 0) return <>—</>
 
   return (
-    <Space direction="vertical" size={6}>
+    <Stack gap="condensed">
       {bindings.map((binding) => (
-        <Space
+        <Stack
           key={`${binding.source_type}:${binding.source_id}:${binding.access_path}`}
-          wrap
-          size={6}
+          direction="horizontal"
+          gap="condensed"
+          align="center"
+          wrap="wrap"
         >
-          <Typography.Text>
+          <Text>
             {binding.source_type === 'shared_resource_version' ? '资源版本' : '运行产物'}{' '}
             {binding.source_id}
-          </Typography.Text>
-          {binding.source_subpath && (
-            <Typography.Text type="secondary">来源子路径 {binding.source_subpath}</Typography.Text>
-          )}
-          <Typography.Text code>输入访问路径 {binding.access_path}</Typography.Text>
+          </Text>
+          {binding.source_subpath ? (
+            <Text style={{ color: 'var(--fgColor-muted)' }}>
+              来源子路径 {binding.source_subpath}
+            </Text>
+          ) : null}
+          <Text as="code">输入访问路径 {binding.access_path}</Text>
           {availabilityTag(checking, preflightOk)}
-        </Space>
+        </Stack>
       ))}
-    </Space>
+    </Stack>
   )
 }

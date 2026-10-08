@@ -93,9 +93,8 @@ describe('VersionDetailPage 权限可见性', () => {
 
     renderPage()
 
-    // antd Button 对双字符中文标签会插入间距，可访问名变成「派 生」
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /派\s*生/ })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '派生' })).toBeInTheDocument()
     })
     expect(screen.queryByRole('button', { name: /运行此版本/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /恢复到此版本/ })).not.toBeInTheDocument()

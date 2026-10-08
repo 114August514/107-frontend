@@ -1,6 +1,6 @@
 import { EditorView } from '@codemirror/view'
 import { DownloadIcon, HomeIcon } from '@primer/octicons-react'
-import { Button, Card, Tag, Typography } from 'antd'
+import { Button, Label, Text } from '@primer/react'
 import { Highlight, themes } from 'prism-react-renderer'
 import { langs } from '@uiw/codemirror-extensions-langs'
 import CodeMirror from '@uiw/react-codemirror'
@@ -129,15 +129,18 @@ export function FileViewer({
       </nav>
       <div className={styles.header}>
         <div>
-          <Typography.Title level={3}>{fileName}</Typography.Title>
-          {version && <Tag color="blue">{version.label} · 只读</Tag>}
+          <h1>{fileName}</h1>
+          {version && <Label variant="accent">{version.label} · 只读</Label>}
         </div>
         <div className={styles.headerActions}>
           {version && workingHref && (
             <Button onClick={() => navigate(workingHref)}>编辑 Working State</Button>
           )}
           {!version && (
-            <Button icon={<DownloadIcon />} onClick={() => void api.downloadFile(projectId, path)}>
+            <Button
+              leadingVisual={DownloadIcon}
+              onClick={() => void api.downloadFile(projectId, path)}
+            >
               下载文件
             </Button>
           )}
@@ -159,11 +162,11 @@ export function FileViewer({
         onRetry={file.reload}
       >
         {file.data && (
-          <Card className={styles.viewerCard}>
+          <div className={styles.viewerCard}>
             {file.data.truncated && (
-              <Typography.Paragraph type="warning">
+              <Text style={{ color: 'var(--fgColor-attention)' }}>
                 文件过大，只显示开头内容，不能保存。
-              </Typography.Paragraph>
+              </Text>
             )}
             {readOnly ? (
               <Highlight theme={themes.github} code={content} language={languageForPath(path)}>
@@ -195,12 +198,12 @@ export function FileViewer({
             )}
             {canWrite && !file.data.truncated && (
               <div className={styles.actions}>
-                <Button type="primary" onClick={save} loading={saving}>
+                <Button variant="primary" onClick={save} loading={saving}>
                   保存
                 </Button>
               </div>
             )}
-          </Card>
+          </div>
         )}
       </AsyncState>
     </div>
