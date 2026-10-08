@@ -1,11 +1,12 @@
 import { ActionList, Banner, Button, FormControl, Textarea, TextInput } from '@primer/react'
 import { useRef, useState } from 'react'
-import { Link, useOutletContext } from 'react-router-dom'
+import { Link, useOutletContext, useSearchParams } from 'react-router-dom'
 
 import { api } from '../../api/client'
 import { can } from '../../api/types'
 import type { UserGroupOutletContext } from '../../pages/UserGroupPage'
 import styles from '../project/projectSettingsPanel.module.css'
+import { GroupConfigSection } from './GroupConfigSection'
 import { LeaveGroupPanel } from './LeaveGroupPanel'
 
 interface Feedback {
@@ -23,6 +24,8 @@ export function SettingsSection() {
   const [nameError, setNameError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [feedback, setFeedback] = useState<Feedback | null>(null)
+  const [params] = useSearchParams()
+  const section = params.get('section') === 'variables' ? 'variables' : 'general'
 
   const submit = async () => {
     const trimmed = name.trim()
@@ -52,13 +55,18 @@ export function SettingsSection() {
     <div className={styles.layout}>
       <nav className={styles.navigation} aria-label="User Group 设置分区">
         <ActionList>
-          <ActionList.LinkItem as={Link} to="?section=general" active>
+          <ActionList.LinkItem as={Link} to="?section=general" active={section === 'general'}>
             常规
+          </ActionList.LinkItem>
+          <ActionList.LinkItem as={Link} to="?section=variables" active={section === 'variables'}>
+            环境变量
           </ActionList.LinkItem>
         </ActionList>
       </nav>
       <div className={styles.content}>
-        {canUpdate ? (
+        {section === 'variables' ? (
+          <GroupConfigSection userGroup={userGroup} />
+        ) : canUpdate ? (
           <section className={styles.section} aria-labelledby="user-group-settings-title">
             <h2 id="user-group-settings-title" className={styles.paneTitle}>
               基本信息

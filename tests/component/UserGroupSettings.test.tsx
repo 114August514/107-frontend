@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { api } from '../../src/api/client'
+import type { Secret, Variable } from '../../src/api/types'
 import type { UserGroup } from '../../src/api/types'
 import { SettingsSection } from '../../src/components/usergroup/SettingsSection'
 import { UserGroupProvider } from '../../src/components/usergroup/UserGroupHeaderNav'
@@ -19,10 +20,10 @@ const group: UserGroup = {
   capabilities: ['user_group.view', 'user_group.update', 'member.view'],
 }
 
-function renderSettings(groupFixture: UserGroup = group) {
+function renderSettings(groupFixture: UserGroup = group, path = '/user-groups/grp_lab/settings') {
   vi.spyOn(api, 'getUserGroup').mockResolvedValue(groupFixture)
   return render(
-    <MemoryRouter initialEntries={['/user-groups/grp_lab/settings']}>
+    <MemoryRouter initialEntries={[path]}>
       <UserGroupProvider>
         <Routes>
           <Route path="/user-groups/:userGroupId" element={<UserGroupPage />}>
@@ -102,5 +103,61 @@ describe('User Group 设置分区', () => {
     expect(screen.getByRole('button', { name: '退出 User Group' })).toBeInTheDocument()
     expect(screen.queryByLabelText(/名称/)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '保存更改' })).not.toBeInTheDocument()
+  })
+
+  it('有管理权限的成员可以查看变量值并替换 Secret，已有 Secret 明文不出现', async () => {
+    const managed: UserGroup = {
+      ...group,
+      capabilities: ['user_group.view', 'user_group.update'],
+    }
+    const variables: Variable[] = [
+      { name: 'DATASET', value: 's3://data', updated_at: '2026-08-17T00:00:00Z' },
+    ]
+    const secrets: Secret[] = [{ name: 'TOKEN', updated_at: '2026-08-17T00:00:00Z' }]
+    vi.spyOn(api, 'listUserGroupVariables').mockResolvedValue(variables)
+    vi.spyOn(api, 'listUserGroupSecrets').mockResolvedValue(secrets)
+    const replaceSecret = vi.spyOn(api, 'putUserGroupSecret').mockResolvedValue()
+    const removeVariable = vi.spyOn(api, 'deleteUserGroupVariable').mockResolvedValue()
+    renderSettings(managed, '/user-groups/grp_lab/settings?section=variables')
+
+    expect(await screen.findByText('s3://data')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: '删除 DATASET' }))
+    fireEvent.click(await screen.findByRole('button', { name: '删除' }))
+    expect(removeVariable).toHaveBeenCalledWith('grp_lab', 'DATASET')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Secrets' }))
+    expect(await screen.findByText('TOKEN')).toBeVisible()
+    expect(screen.queryByDisplayValue(/./)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '替换 TOKEN' }))
+    fireEvent.change(screen.getByLabelText('新 Secret 值'), { target: { value: 'new-token' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+    await screen.findByText('TOKEN')
+    expect(replaceSecret).toHaveBeenCalledWith('grp_lab', { name: 'TOKEN', value: 'new-token' })
+  })
+
+  it('只有查看权限时不提供添加和删除', async () => {
+    const reader: UserGroup = {
+      ...group,
+      role: 'member',
+      capabilities: ['user_group.view', 'member.view'],
+    }
+    vi.spyOn(api, 'listUserGroupVariables').mockResolvedValue([
+      { name: 'DATASET', value: 's3://data', updated_at: '2026-08-17T00:00:00Z' },
+    ])
+    renderSettings(reader, '/user-groups/grp_lab/settings?section=variables')
+
+    expect(await screen.findByText('s3://data')).toBeVisible()
+    expect(screen.queryByRole('button', { name: '添加变量' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '删除 DATASET' })).not.toBeInTheDocument()
+  })
+
+  it('加载失败时给出可理解的错误', async () => {
+    vi.spyOn(api, 'listUserGroupVariables').mockRejectedValue(new Error('forbidden'))
+    renderSettings(
+      { ...group, capabilities: ['user_group.view', 'user_group.update'] },
+      '/user-groups/grp_lab/settings?section=variables',
+    )
+
+    expect(await screen.findByText('请求失败。')).toBeVisible()
   })
 })
