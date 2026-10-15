@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AsyncState } from '../../src/components/common/AsyncState'
@@ -49,6 +49,7 @@ describe('DesignSystemPage', () => {
       'Icons',
       'States',
       'Patterns',
+      'Permission',
       'Content',
     ]) {
       expect(screen.getByRole('heading', { name: section })).toBeInTheDocument()
@@ -140,6 +141,37 @@ describe('DesignSystemPage', () => {
     expect(dialog).toHaveAccessibleName('删除 Project“mnist-train”？')
     fireEvent.click(screen.getByRole('button', { name: '取消' }))
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+  })
+
+  it('按 capability 隐藏 Project 分区，并展示权限不足文案', () => {
+    render(
+      <PrimerRoot>
+        <DesignSystemPage />
+      </PrimerRoot>,
+    )
+
+    expect(screen.getByText(/不用 disabled 代替/)).toBeInTheDocument()
+
+    const reader = screen.getByRole('navigation', { name: '公开读者的 Project 分区' })
+    expect(within(reader).getByRole('link', { name: 'Files' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    expect(within(reader).getByRole('link', { name: 'Activity' })).toBeInTheDocument()
+    expect(within(reader).queryByRole('link', { name: 'Runs' })).not.toBeInTheDocument()
+    expect(within(reader).queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument()
+
+    const capable = screen.getByRole('navigation', { name: '有操作能力的 Project 分区' })
+    for (const name of ['Files', 'Runs', 'Activity', 'Settings']) {
+      expect(within(capable).getByRole('link', { name })).toBeInTheDocument()
+    }
+    expect(screen.getAllByRole('link', { name: 'Runs' })).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: 'Runs' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeInTheDocument()
+
+    const denied = screen.getByRole('region', { name: '说明不能完成的动作' })
+    expect(denied).toHaveTextContent('无法发布这个版本。')
+    expect(denied).toHaveTextContent('你当前没有发布共享资源版本的权限。')
   })
 
   it('页头提供响应式返回入口与完整规范来源', () => {
