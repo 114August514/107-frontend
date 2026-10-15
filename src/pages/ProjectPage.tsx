@@ -27,6 +27,11 @@ import type {
   WorkingChange,
 } from '../api/types'
 import { can } from '../api/types'
+import {
+  projectShowsRunConfigurations,
+  projectShowsRuns,
+  projectShowsSettings,
+} from '../components/project/projectSurface'
 import { useAsync, type AsyncState as AsyncResource } from '../api/useAsync'
 import { ActivityFeed } from '../components/activity/ActivityFeed'
 import { AsyncSection } from '../components/common/AsyncSection'
@@ -349,9 +354,13 @@ export function ProjectPage({ project }: { project: AsyncResource<Project | unde
   }
 
   const [runPage, setRunPage] = useState(1)
+  const showRuns = projectShowsRuns(project.data)
   const runs = useAsync<RunPage>(
-    () => api.listRuns(projectId, { page: runPage }),
-    [projectId, token, runPage],
+    () =>
+      showRuns
+        ? api.listRuns(projectId, { page: runPage })
+        : Promise.resolve({ items: [], page: 1, page_size: 20, total: 0, has_more: false }),
+    [projectId, token, runPage, showRuns],
   )
   const runError = toAsyncError(runs.error)
 
@@ -478,6 +487,8 @@ export function ProjectPage({ project }: { project: AsyncResource<Project | unde
           />
         )}
       </AsyncSection>
+    ) : view === 'history' && !projectShowsRuns(project.data) ? (
+      <p>你没有查看此 Project 的 Run 的权限。</p>
     ) : view === 'history' ? (
       <PrimerListCard>
         <AsyncState
@@ -496,6 +507,8 @@ export function ProjectPage({ project }: { project: AsyncResource<Project | unde
           />
         </AsyncState>
       </PrimerListCard>
+    ) : view === 'configurations' && !projectShowsRunConfigurations(project.data) ? (
+      <p>你没有查看此 Project 运行方案的权限。</p>
     ) : view === 'configurations' ? (
       <PrimerListCard padded>
         <RunConfigurationPanel
@@ -515,6 +528,8 @@ export function ProjectPage({ project }: { project: AsyncResource<Project | unde
           emptyText="这个 Project 还没有活动记录"
         />
       </ListCard>
+    ) : !projectShowsSettings(project.data) ? (
+      <p>你没有查看此 Project 设置的权限。</p>
     ) : (
       <AsyncSection loading={project.loading} error={project.error}>
         <ProjectSettingsPanel

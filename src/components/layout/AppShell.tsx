@@ -25,6 +25,7 @@ import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode 
 import { Link as RouterLink, matchPath, useLocation } from 'react-router-dom'
 
 import type { Home, Project, User } from '../../api/types'
+import { projectShowsRuns, projectShowsSettings } from '../project/projectSurface'
 import type { AsyncState as AsyncResource } from '../../api/useAsync'
 import { startLogin } from '../../auth/AuthProvider'
 import { authCopy } from '../../auth/authCopy'
@@ -258,14 +259,16 @@ export function AppShell({ user, home, project, children }: Props) {
                   >
                     {appShellCopy.files}
                   </UnderlineNav.Item>
-                  <UnderlineNav.Item
-                    as={RouterLink}
-                    to={`/projects/${projectId}/runs`}
-                    leadingVisual={<PlayIcon />}
-                    aria-current={projectArea === 'runs' ? 'page' : undefined}
-                  >
-                    {appShellCopy.runs}
-                  </UnderlineNav.Item>
+                  {projectShowsRuns(currentProject) ? (
+                    <UnderlineNav.Item
+                      as={RouterLink}
+                      to={`/projects/${projectId}/runs`}
+                      leadingVisual={<PlayIcon />}
+                      aria-current={projectArea === 'runs' ? 'page' : undefined}
+                    >
+                      {appShellCopy.runs}
+                    </UnderlineNav.Item>
+                  ) : null}
                   <UnderlineNav.Item
                     as={RouterLink}
                     to={`/projects/${projectId}/activity`}
@@ -274,14 +277,16 @@ export function AppShell({ user, home, project, children }: Props) {
                   >
                     {appShellCopy.activity}
                   </UnderlineNav.Item>
-                  <UnderlineNav.Item
-                    as={RouterLink}
-                    to={`/projects/${projectId}/settings`}
-                    leadingVisual={<GearIcon />}
-                    aria-current={projectArea === 'settings' ? 'page' : undefined}
-                  >
-                    {appShellCopy.settings}
-                  </UnderlineNav.Item>
+                  {projectShowsSettings(currentProject) ? (
+                    <UnderlineNav.Item
+                      as={RouterLink}
+                      to={`/projects/${projectId}/settings`}
+                      leadingVisual={<GearIcon />}
+                      aria-current={projectArea === 'settings' ? 'page' : undefined}
+                    >
+                      {appShellCopy.settings}
+                    </UnderlineNav.Item>
+                  ) : null}
                 </UnderlineNav>
               </div>
             ) : null}

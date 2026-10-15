@@ -73,6 +73,7 @@ const projectData: Project = {
   updated_at: '2026-08-16T10:00:00Z',
   default_run_configuration_id: null,
   environment_version_id: null,
+  capabilities: ['project.view', 'project.update', 'run.view', 'config.view', 'project.delete'],
 }
 
 const secondProject: Project = {
@@ -231,6 +232,21 @@ describe('AppShell 壳层', () => {
       'href',
       '/projects/p-1/settings',
     )
+  })
+
+  it('公开读者看不到 Run 和 Settings 入口', () => {
+    renderShell(
+      homeData.user,
+      readyHome(),
+      '/projects/p-1/files',
+      readyProject({ ...projectData, visibility: 'public', capabilities: ['project.view'] }),
+    )
+
+    const navigation = screen.getByRole('navigation', { name: 'Project navigation' })
+    expect(within(navigation).getByRole('link', { name: 'Files' })).toBeVisible()
+    expect(within(navigation).getByRole('link', { name: 'Activity' })).toBeVisible()
+    expect(within(navigation).queryByRole('link', { name: 'Runs' })).not.toBeInTheDocument()
+    expect(within(navigation).queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument()
   })
 
   it('在当前 Owner namespace 内搜索并切换 Project', async () => {
