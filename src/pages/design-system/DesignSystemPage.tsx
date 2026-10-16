@@ -9,6 +9,7 @@ import {
   ProductIconMapping,
 } from './BrandReference'
 import { CompositionRecipes } from './CompositionRecipes'
+import { PermissionReference } from './PermissionReference'
 import { StatusGallery } from './StatusExamples'
 import styles from './DesignSystemPage.module.css'
 
@@ -249,6 +250,15 @@ export function DesignSystemPage() {
             description="跨页面复用的 Primer 组合：能力感知空态、可恢复错误与危险确认。"
           />
           <CompositionRecipes />
+        </section>
+
+        <section aria-labelledby="permission-heading">
+          <SectionHeading
+            id="permission-heading"
+            title="Permission"
+            description="缺少 capability 时隐藏入口，不用 disabled 代替。disabled 只表示提交中等瞬时不可用。样本固定，不请求接口。"
+          />
+          <PermissionReference />
         </section>
 
         <section aria-labelledby="content-heading">
